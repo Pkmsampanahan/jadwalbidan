@@ -1,0 +1,1199 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>Editor Jadwal Bidan - Puskesmas Sampanahan</title>
+    
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    
+    <!-- Firebase App & Firestore SDK -->
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
+    
+    <style>
+        :root {
+            --primary: #0d9488;
+            --secondary: #6366f1;
+            --excel-border: #e2e8f0;
+            --excel-header: #f8fafc;
+            --sunday-bg: #fff1f2;
+            --sunday-text: #e11d48;
+            --holiday-bg: #fee2e2;
+            --holiday-text: #b91c1c;
+            --warning-bg: #fef2f2;
+            --warning-border: #ef4444;
+        }
+
+        body {
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            background-color: #f1f5f9;
+            color: #1e293b;
+            margin: 0;
+            padding: 0;
+            overscroll-behavior-y: contain;
+        }
+
+        /* Dark Mode Theme Variables */
+        body.dark-mode {
+            background-color: #0f172a;
+            color: #f1f5f9;
+            --excel-border: #334155;
+            --excel-header: #1e293b;
+            --sunday-bg: #4c0519;
+            --sunday-text: #fda4af;
+            --holiday-bg: #450a0a;
+            --holiday-text: #fca5a5;
+            --warning-bg: #450a0a;
+            --warning-border: #f87171;
+        }
+
+        body.dark-mode .excel-card,
+        body.dark-mode .modal-card,
+        body.dark-mode .capture-footer,
+        body.dark-mode .context-menu {
+            background-color: #1e293b !important;
+            border-color: #334155 !important;
+            color: #f1f5f9 !important;
+        }
+
+        body.dark-mode .sticky-name {
+            background: #1e293b !important;
+            color: #f1f5f9 !important;
+            border-right: 2px solid #334155 !important;
+        }
+
+        body.dark-mode thead th.sticky-name {
+            background: #1e293b !important;
+        }
+
+        body.dark-mode thead th {
+            background: #1e293b !important;
+            color: #94a3b8 !important;
+        }
+
+        body.dark-mode input, 
+        body.dark-mode select {
+            background-color: #0f172a !important;
+            color: #f1f5f9 !important;
+            border-color: #334155 !important;
+        }
+
+        body.dark-mode .item-row {
+            background: #0f172a !important;
+            border-color: #334155 !important;
+        }
+
+        .excel-card {
+            background: white;
+            border-radius: 16px;
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.05);
+            overflow: hidden;
+            border: 1px solid var(--excel-border);
+        }
+
+        .table-viewport {
+            overflow: auto;
+            max-height: 72vh;
+            position: relative;
+            -webkit-overflow-scrolling: touch;
+        }
+
+        table {
+            border-collapse: separate;
+            border-spacing: 0;
+            width: 100%;
+        }
+
+        th, td {
+            border-right: 1px solid var(--excel-border);
+            border-bottom: 1px solid var(--excel-border);
+            padding: 2px; 
+            text-align: center;
+            font-size: 11px;
+            min-width: 60px;
+            height: 60px;
+        }
+
+        thead th {
+            position: sticky;
+            top: 0;
+            background: var(--excel-header);
+            z-index: 20;
+            font-weight: 800;
+            color: #64748b;
+            text-transform: uppercase;
+            font-size: 9px;
+            letter-spacing: 0.05em;
+            padding: 12px 8px;
+        }
+
+        .sticky-name {
+            position: sticky;
+            left: 0;
+            background: white !important;
+            z-index: 30;
+            min-width: 190px;
+            max-width: 220px;
+            text-align: left;
+            padding-left: 16px !important;
+            font-weight: 700;
+            border-right: 2px solid var(--excel-border) !important;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            transition: box-shadow 0.3s;
+        }
+
+        .scrolled-right .sticky-name {
+            box-shadow: 4px 0 8px rgba(0,0,0,0.1);
+        }
+
+        thead th.sticky-name { 
+            z-index: 40; 
+            background: var(--excel-header) !important;
+        }
+
+        .shift-select {
+            width: 100%;
+            height: 100%;
+            border: none;
+            background: transparent;
+            text-align: center;
+            font-weight: 800;
+            cursor: pointer;
+            appearance: none;
+            outline: none;
+            text-align-last: center;
+            font-size: 11px;
+            transition: all 0.2s;
+        }
+
+        .shift-badge-item {
+            font-size: 10px;
+            font-weight: 800;
+            padding: 3px 4px;
+            border-radius: 4px;
+            display: inline-block;
+            white-space: normal;
+            word-break: break-word;
+            line-height: 1.2;
+            width: 100%;
+            box-sizing: border-box;
+        }
+
+        .cell-P, .badge-P { background-color: #ccfbf1 !important; color: #0d9488 !important; }
+        .cell-S, .badge-S { background-color: #fef3c7 !important; color: #d97706 !important; }
+        .cell-M, .badge-M { background-color: #dbeafe !important; color: #2563eb !important; }
+        .cell-generic { background-color: #f1f5f9 !important; color: #475569 !important; }
+        
+        body.dark-mode .cell-P, body.dark-mode .badge-P { background-color: #134e4a !important; color: #5eead4 !important; }
+        body.dark-mode .cell-S, body.dark-mode .badge-S { background-color: #78350f !important; color: #fcd34d !important; }
+        body.dark-mode .cell-M, body.dark-mode .badge-M { background-color: #1e3a8a !important; color: #93c5fd !important; }
+        body.dark-mode .cell-generic { background-color: #334155 !important; color: #cbd5e1 !important; }
+
+        .is-sunday { background-color: var(--sunday-bg) !important; color: var(--sunday-text) !important; }
+        .is-holiday { background-color: var(--holiday-bg) !important; color: var(--holiday-text) !important; }
+        .is-off-day { background-color: #f8fafc !important; color: #cbd5e1 !important; }
+        body.dark-mode .is-off-day { background-color: #0f172a !important; color: #475569 !important; }
+        
+        .is-clash { 
+            background-color: var(--warning-bg) !important; 
+            border: 2px solid var(--warning-border) !important; 
+        }
+
+        th.date-header { cursor: pointer; transition: all 0.2s; }
+        th.date-header:hover { background-color: #f1f5f9; color: var(--primary); }
+
+        @keyframes pulse-teal {
+            0% { box-shadow: 0 0 0 0 rgba(13, 148, 136, 0.7); }
+            70% { box-shadow: 0 0 0 10px rgba(13, 148, 136, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(13, 148, 136, 0); }
+        }
+        .btn-dirty {
+            animation: pulse-teal 2s infinite;
+            background-color: #0f766e !important;
+        }
+
+        .modal-overlay {
+            position: fixed; inset: 0; background: rgba(15, 23, 42, 0.7);
+            backdrop-filter: blur(8px); z-index: 1000;
+            display: none; align-items: center; justify-content: center; padding: 20px;
+        }
+        .modal-card {
+            background: white; width: 100%; max-width: 400px;
+            border-radius: 24px; overflow: hidden; animation: slideUp 0.3s ease-out;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+        }
+        @keyframes slideUp { from { transform: translateY(20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+
+        .item-row {
+            display: flex; align-items: center; justify-content: space-between;
+            background: #f8fafc; padding: 12px 16px; border-radius: 14px; margin-bottom: 8px;
+            border: 1px solid #f1f5f9;
+        }
+
+        #loader {
+            position: fixed; inset: 0; background: rgba(255,255,255,0.9);
+            z-index: 1100; display: none; flex-direction: column; align-items: center; justify-content: center;
+        }
+        body.dark-mode #loader { background: rgba(15, 23, 42, 0.9); }
+
+        .btn-hover:active { transform: scale(0.95); opacity: 0.8; }
+        
+        .capture-footer {
+            padding: 24px;
+            border-top: 2px solid var(--excel-border);
+            background: white;
+            display: none;
+        }
+        
+        .legend-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+            gap: 12px;
+            margin-top: 10px;
+        }
+
+        .success-icon-bg {
+            background: linear-gradient(135deg, #0d9488 0%, #059669 100%);
+        }
+
+        .help-list li {
+            position: relative;
+            padding-left: 28px;
+            margin-bottom: 12px;
+            font-size: 11px;
+            font-weight: 600;
+            color: #475569;
+        }
+        body.dark-mode .help-list li { color: #94a3b8; }
+        .help-list li::before {
+            content: '✓';
+            position: absolute;
+            left: 0;
+            color: var(--primary);
+            font-weight: 900;
+        }
+
+        .context-menu {
+            position: fixed; background: white; border-radius: 12px; box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+            z-index: 2000; padding: 8px; display: none; border: 1px solid #e2e8f0;
+        }
+        .context-menu button {
+            width: 100%; text-align: left; padding: 8px 16px; border-radius: 8px;
+            font-size: 11px; font-weight: 700; color: #475569;
+        }
+        .context-menu button:hover { background: #f1f5f9; color: var(--primary); }
+        body.dark-mode .context-menu button { color: #cbd5e1; }
+        body.dark-mode .context-menu button:hover { background: #334155; color: #5eead4; }
+
+        /* Toast Notification */
+        #toast-notification {
+            position: fixed; bottom: 24px; right: 24px; z-index: 2500;
+            background: #0f766e; color: white; padding: 12px 20px; border-radius: 12px;
+            font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.05em;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.2); display: flex; align-items: center; gap: 8px;
+            transform: translateY(100px); opacity: 0; transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+        #toast-notification.show { transform: translateY(0); opacity: 1; }
+    </style>
+</head>
+<body class="p-2 md:p-8">
+
+<div id="loader">
+    <div class="w-10 h-10 border-4 border-teal-600 border-t-transparent rounded-full animate-spin mb-2"></div>
+    <p id="loader-text" class="text-[10px] font-black uppercase tracking-widest text-teal-800 dark:text-teal-400">Sinkronisasi Firebase...</p>
+</div>
+
+<!-- Toast Notification Element -->
+<div id="toast-notification">
+    <span>✨</span> <span id="toast-text">Berhasil Disimpan!</span>
+</div>
+
+<div id="auth-overlay" class="fixed inset-0 bg-slate-900 z-[2000] flex items-center justify-center p-6">
+    <div class="bg-white dark:bg-slate-800 p-8 rounded-[32px] w-full max-w-sm text-center shadow-2xl">
+        <div class="text-4xl mb-4">🔐</div>
+        <h2 class="text-xl font-black text-slate-800 dark:text-white mb-2 uppercase italic">Akses Terbatas</h2>
+        <p class="text-[10px] font-bold text-slate-400 dark:text-slate-500 mb-6 uppercase tracking-widest">Masukkan Password Admin</p>
+        <input type="password" id="api-key-input" placeholder="••••••••" class="w-full bg-slate-50 dark:bg-slate-900 border-2 border-slate-100 dark:border-slate-700 rounded-2xl px-6 py-4 text-center text-lg font-bold mb-4 focus:border-teal-500 outline-none text-slate-800 dark:text-white">
+        <button onclick="checkAuth()" class="w-full bg-slate-900 dark:bg-teal-600 text-white py-4 rounded-2xl font-black text-xs uppercase tracking-widest">Masuk Sistem</button>
+    </div>
+</div>
+
+<div id="context-menu" class="context-menu">
+    <button onclick="bulkFillDown()">⚡ Isi Kebawah (7 Hari)</button>
+    <button onclick="clearRow()">🧹 Bersihkan Baris</button>
+</div>
+
+<div id="modal-success" class="modal-overlay" onclick="if(event.target === this) closeSuccessModal()">
+    <div class="modal-card !max-w-[340px]">
+        <div class="p-8 text-center">
+            <div class="w-20 h-20 success-icon-bg rounded-full flex items-center justify-center mx-auto mb-6 shadow-xl shadow-teal-100 dark:shadow-none animate-bounce">
+                <svg class="w-10 h-10 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"></path>
+                </svg>
+            </div>
+            <h3 class="text-xl font-black text-slate-800 dark:text-white uppercase tracking-tight mb-2">Data Tersimpan!</h3>
+            <p class="text-[11px] font-bold text-slate-400 dark:text-slate-400 uppercase leading-relaxed mb-8 tracking-widest">Jadwal berhasil disinkronkan ke Firebase.</p>
+            <button onclick="closeSuccessModal()" class="w-full bg-slate-900 dark:bg-teal-600 text-white py-4 rounded-2xl font-black text-xs uppercase tracking-[0.2em] shadow-lg active:scale-95 transition-all">Selesai</button>
+        </div>
+    </div>
+</div>
+
+<!-- Modal Peringatan Bentrok Jadwal Interaktif -->
+<div id="modal-clash" class="modal-overlay" onclick="if(event.target === this) closeClashModal()">
+    <div class="modal-card !max-w-[380px]">
+        <div class="p-6 text-center">
+            <div class="w-16 h-16 bg-amber-500 text-white rounded-full flex items-center justify-center mx-auto mb-4 text-2xl shadow-lg">⚠️</div>
+            <h3 class="text-base font-black text-slate-800 dark:text-white uppercase tracking-tight mb-2">Bentrok Jadwal Terdeteksi!</h3>
+            <p id="clash-desc-text" class="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase leading-relaxed mb-6">Bidan ini sudah memiliki jadwal di ruangan lain pada tanggal tersebut.</p>
+            <div class="flex gap-2">
+                <button onclick="confirmForceClash()" class="flex-1 bg-amber-500 text-white py-3 rounded-xl font-black text-[10px] uppercase tracking-wider shadow-md">Tetap Tetapkan</button>
+                <button onclick="closeClashModal()" class="flex-1 bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-white py-3 rounded-xl font-black text-[10px] uppercase tracking-wider">Batalkan</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div id="modal-help" class="modal-overlay" onclick="if(event.target === this) closeHelpModal()">
+    <div class="modal-card">
+        <div class="p-6 border-b border-slate-100 dark:border-slate-700 flex justify-between items-center bg-slate-50 dark:bg-slate-800">
+            <h3 class="font-black text-slate-800 dark:text-white uppercase text-sm tracking-tight">Aturan Layanan & Panduan</h3>
+            <button onclick="closeHelpModal()" class="text-slate-400">✕</button>
+        </div>
+        <div class="p-6">
+            <ul class="help-list">
+                <li><b>Ringkasan Harian:</b> Baris paling bawah tabel menampilkan total personil yang bertugas per shift setiap harinya untuk kontrol kepala puskesmas[span_0](start_span)[span_0](end_span).</li>
+                <li><b>Aturan Jaga UGD / Persalinan & Rotasi:</b> Dialokasikan 3 orang bidan per shift UGD. Sistem otomatis merotasi petugas yang mendapat shift Siang di UGD hari ini agar keesokan harinya bertugas di KIA (2 orang) dan KB (1 orang)[span_1](start_span)[span_1](end_span).</li>
+                <li><b>Navigasi Seluler & Tema:</b> Gunakan tombol lompat cepat tanggal di perangkat mobile serta fitur tombol Dark Mode di pojok kanan atas untuk kenyamanan pandang[span_2](start_span)[span_2](end_span).</li>
+            </ul>
+            <button onclick="closeHelpModal()" class="w-full mt-4 bg-teal-600 text-white py-3 rounded-xl font-black text-[10px] uppercase tracking-widest shadow-md">Saya Mengerti</button>
+        </div>
+    </div>
+</div>
+
+<div id="modal-shift" class="modal-overlay" onclick="if(event.target === this) closeShiftModal()">
+    <div class="modal-card">
+        <div class="p-6 border-b border-slate-100 dark:border-slate-700 flex justify-between items-center">
+            <h3 class="font-black text-slate-800 dark:text-white uppercase text-sm tracking-tight">Kategori Shift Bidan</h3>
+            <button onclick="closeShiftModal()" class="text-slate-400">✕</button>
+        </div>
+        <div class="p-6">
+            <div id="shift-list-container" class="max-h-[300px] overflow-y-auto mb-6 pr-2"></div>
+            <div class="bg-slate-50 dark:bg-slate-900 p-4 rounded-2xl border border-slate-100 dark:border-slate-700">
+                <label class="text-[9px] font-black uppercase text-slate-400 block mb-2">Tambah Baru</label>
+                <div class="flex gap-2">
+                    <input type="text" id="input-new-shift" maxlength="10" placeholder="Kode Shift..." class="flex-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2.5 text-xs font-bold uppercase outline-none focus:border-teal-500 text-slate-800 dark:text-white">
+                    <button onclick="addNewShift()" class="bg-teal-600 text-white px-4 py-2.5 rounded-xl font-black text-[10px] uppercase">Tambah</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div id="modal-officer" class="modal-overlay" onclick="if(event.target === this) closeOfficerModal()">
+    <div class="modal-card">
+        <div class="p-6 border-b border-slate-100 dark:border-slate-700 flex justify-between items-center">
+            <h3 class="font-black text-slate-800 dark:text-white uppercase text-sm tracking-tight">Daftar Bidan</h3>
+            <button onclick="closeOfficerModal()" class="text-slate-400">✕</button>
+        </div>
+        <div class="p-6">
+            <div id="officer-list-container" class="max-h-[300px] overflow-y-auto mb-6 pr-2"></div>
+            <div class="bg-slate-50 dark:bg-slate-900 p-4 rounded-2xl border border-slate-100 dark:border-slate-700">
+                <label class="text-[9px] font-black uppercase text-slate-400 block mb-2">Tambah Bidan Baru</label>
+                <div class="flex gap-2">
+                    <input type="text" id="input-new-officer" placeholder="Nama Bidan..." class="flex-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2.5 text-xs font-bold uppercase outline-none focus:border-teal-500 text-slate-800 dark:text-white">
+                    <button onclick="addNewOfficer()" class="bg-indigo-600 text-white px-4 py-2.5 rounded-xl font-black text-[10px] uppercase">Tambah</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="max-w-full mx-auto">
+    <div class="flex flex-col lg:flex-row justify-between items-center mb-6 gap-6">
+        <div class="flex items-center gap-4 w-full sm:w-auto">
+            <div class="w-14 h-14 bg-slate-900 dark:bg-teal-600 rounded-2xl flex items-center justify-center text-white text-2xl shadow-xl">👶</div>
+            <div>
+                <h1 class="text-xl font-black tracking-tight uppercase text-slate-800 dark:text-white leading-none">Jadwal Bidan</h1>
+                <p class="text-[9px] font-bold text-slate-400 uppercase tracking-[0.2em] mt-1">Puskesmas Sampanahan (Firebase)[span_3](start_span)[span_3](end_span)</p>
+            </div>
+        </div>
+
+        <div class="flex flex-col sm:flex-row items-center gap-4 w-full lg:w-auto">
+            <!-- Mobile Quick Navigation & View Controls -->
+            <div class="flex bg-slate-200/60 dark:bg-slate-800 p-1 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm w-full sm:w-auto justify-between">
+                <button onclick="jumpToToday()" class="px-3 py-2 rounded-xl text-[10px] font-black uppercase tracking-wider text-slate-600 dark:text-slate-300 hover:bg-white dark:hover:bg-slate-700 transition-all" title="Lompat ke Tanggal Hari Ini">📅 Hari Ini</button>
+                <button onclick="toggleDarkMode()" id="btn-dark-mode" class="px-3 py-2 rounded-xl text-[10px] font-black uppercase tracking-wider text-slate-600 dark:text-slate-300 hover:bg-white dark:hover:bg-slate-700 transition-all" title="Ubah Tema Gelap/Terang">🌙 Tema</button>
+            </div>
+
+            <div class="relative w-full sm:w-48">
+                <select id="select-calendar-category" onchange="changeCategory(this.value)" class="w-full bg-slate-900 dark:bg-slate-800 text-white border border-slate-800 dark:border-slate-700 rounded-2xl px-4 py-3 text-xs font-black uppercase tracking-wider outline-none cursor-pointer shadow-sm appearance-none text-center">
+                    <option value="UGD" selected>🚨 Kalender UGD</option>
+                    <option value="KIA">🏥 Kalender KIA (Pagi)</option>
+                    <option value="KB">💊 Kalender KB (Pagi)</option>
+                </select>
+                <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-4 text-white">
+                    <svg class="fill-current h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20"><path d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z"/></svg>
+                </div>
+            </div>
+
+            <div class="relative w-full sm:w-44">
+                <span class="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 text-sm">🔍</span>
+                <input type="text" id="search-nurse" oninput="renderTable()" placeholder="Cari Nama Bidan..." class="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl pl-10 pr-4 py-3 text-xs font-bold outline-none focus:border-teal-500 transition-all shadow-sm text-slate-800 dark:text-white">
+            </div>
+
+            <div class="flex bg-slate-200/60 dark:bg-slate-800 p-1 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm w-full sm:w-auto">
+                <button onclick="setViewState('week')" id="btn-view-week" class="flex-1 sm:flex-none px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all bg-transparent text-slate-500 dark:text-slate-400">Minggu</button>
+                <button onclick="setViewState('month')" id="btn-view-month" class="flex-1 sm:flex-none px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all bg-white dark:bg-slate-700 text-slate-800 dark:text-white shadow-sm">Bulan</button>
+            </div>
+
+            <div class="flex bg-white dark:bg-slate-800 p-1 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm w-full sm:w-auto justify-between">
+                <button onclick="changePeriod(-1)" class="p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-all text-slate-800 dark:text-white">❮</button>
+                <div id="current-period-text" class="px-4 font-black text-[10px] uppercase text-slate-700 dark:text-slate-200 flex items-center min-w-[140px] justify-center tracking-widest">---</div>
+                <button onclick="changePeriod(1)" class="p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-all text-slate-800 dark:text-white">❯</button>
+            </div>
+
+            <div class="flex gap-2 w-full sm:w-auto justify-center flex-wrap">
+                <button onclick="saveConfig()" id="btn-save-main" class="bg-teal-600 text-white px-5 py-3 rounded-xl font-black text-[10px] uppercase shadow-lg shadow-teal-100 dark:shadow-none btn-hover transition-all">💾 Simpan</button>
+
+                <label class="bg-blue-600 text-white px-4 py-3 rounded-xl font-black text-[10px] uppercase shadow-lg shadow-blue-100 dark:shadow-none btn-hover transition-all cursor-pointer flex items-center gap-1 justify-center" title="Upload Excel Jadwal Lama">
+                    📂 Upload Excel
+                    <input type="file" id="excel-file-input" accept=".xlsx, .xls" class="hidden" onchange="handleExcelUpload(event)">
+                </label>
+
+                <button onclick="exportToImage()" class="bg-amber-500 text-white p-3 rounded-xl btn-hover shadow-lg shadow-amber-100 dark:shadow-none" title="Ambil Foto">📸</button>
+                <button onclick="exportToExcel()" class="bg-emerald-600 text-white p-3 rounded-xl btn-hover shadow-lg shadow-emerald-100 dark:shadow-none" title="Unduh Excel">📥</button>
+                <button onclick="openOfficerModal()" class="bg-white dark:bg-slate-800 border-2 border-slate-200 dark:border-slate-700 text-slate-400 p-3 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-700 transition-all" title="Daftar Bidan">👥</button>
+                <button onclick="openShiftModal()" class="bg-white dark:bg-slate-800 border-2 border-slate-200 dark:border-slate-700 text-slate-400 p-3 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-700 transition-all" title="Pengaturan Shift">⚡</button>
+                <button onclick="openHelpModal()" class="bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 p-3 rounded-xl hover:bg-slate-200 dark:hover:bg-slate-700 transition-all" title="Cara Pakai">❓</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="capture-area" class="excel-card">
+        <div id="export-header" class="hidden p-6 text-center border-b-2 border-slate-100 dark:border-slate-700 bg-slate-50 dark:bg-slate-800">
+            <h2 class="text-xl font-black uppercase text-slate-800 dark:text-white tracking-tighter" id="export-title-text">JADWAL BIDAN PUSKESMAS</h2>
+            <p id="calendar-period-top" class="text-[11px] font-bold text-teal-600 uppercase tracking-[0.3em] mt-1">---</p>
+            <p class="text-[8px] font-bold text-slate-400 uppercase mt-2">Puskesmas Sampanahan • Kalimantan Selatan[span_4](start_span)[span_4](end_span)</p>
+        </div>
+
+        <div class="table-viewport" id="table-viewport">
+            <table id="rekap-table">
+                <thead id="table-head"></thead>
+                <tbody id="table-body"></tbody>
+                <tfoot id="table-foot"></tfoot>
+            </table>
+        </div>
+
+        <div id="capture-footer" class="capture-footer">
+            <div class="flex flex-col md:flex-row justify-between items-start gap-8">
+                <div class="flex-1">
+                    <h4 class="text-[9px] font-black text-slate-800 dark:text-white uppercase tracking-widest mb-3 border-b border-slate-100 dark:border-slate-700 pb-1 inline-block">Keterangan Shift:</h4>
+                    <div id="bottom-shift-legend" class="legend-grid"></div>
+                </div>
+                <div class="text-right flex-shrink-0">
+                    <div class="mb-4">
+                        <p class="text-[8px] font-bold text-slate-400 uppercase">Dicetak pada:</p>
+                        <p id="print-timestamp" class="text-[9px] font-black text-slate-800 dark:text-white uppercase">--:--</p>
+                    </div>
+                    <p class="text-[9px] font-black text-slate-800 dark:text-white uppercase tracking-tighter">© 2026 Puskesmas Sampanahan[span_5](start_span)[span_5](end_span)</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    const firebaseConfig = {
+      apiKey: "AIzaSyAO8lYL7SJdDG7018gatR3gLumKy4sWTqA",
+      authDomain: "kalenderbidan.firebaseapp.com",
+      projectId: "kalenderbidan",
+      storageBucket: "kalenderbidan.firebasestorage.app",
+      messagingSenderId: "355592572285",
+      appId: "1:355592572285:web:7548e53b741dd546055014",
+      measurementId: "G-7XDCLPQYEE"
+    };
+
+    if (!firebase.apps.length) {
+        firebase.initializeApp(firebaseConfig);
+    }
+    const db = firebase.firestore();
+
+    const MONTH_NAMES = ["Januari", "Februari", "Maret", "April", "Mei", "Juni", "Juli", "Agustus", "September", "Oktober", "November", "Desember"];
+    const DAYS_SHORT = ["Min", "Sen", "Sel", "Rab", "Kam", "Jum", "Sab"];
+
+    let state = {
+        data: { officers: [], schedule: {}, config: { shifts: ["P", "S", "M"], holidays: [] } },
+        currentDate: new Date(),
+        isDirty: false,
+        activeContext: { name: '', dayKey: '', value: '' },
+        viewState: 'month',
+        currentCategory: 'UGD',
+        darkMode: false,
+        pendingClash: { name: '', dayKey: '', select: null }
+    };
+
+    function checkAuth() {
+        const input = document.getElementById('api-key-input').value;
+        if (input === "2026") {
+            document.getElementById('auth-overlay').style.display = 'none';
+            fetchData();
+        } else {
+            alert("Password Salah!");
+            document.getElementById('api-key-input').value = "";
+            document.getElementById('api-key-input').focus();
+        }
+    }
+
+    document.getElementById('api-key-input').addEventListener('keypress', function(e) {
+        if (e.key === 'Enter') {
+            checkAuth();
+        }
+    });
+
+    function toggleDarkMode() {
+        state.darkMode = !state.darkMode;
+        if(state.darkMode) {
+            document.body.classList.add('dark-mode');
+            document.getElementById('btn-dark-mode').innerText = "☀️ Terang";
+        } else {
+            document.body.classList.remove('dark-mode');
+            document.getElementById('btn-dark-mode').innerText = "🌙 Tema";
+        }
+    }
+
+    function jumpToToday() {
+        state.currentDate = new Date();
+        fetchData();
+        showToast("Menuju Bulan Hari Ini");
+    }
+
+    function showToast(msg) {
+        const toast = document.getElementById('toast-notification');
+        document.getElementById('toast-text').innerText = msg;
+        toast.classList.add('show');
+        setTimeout(() => {
+            toast.classList.remove('show');
+        }, 3000);
+    }
+
+    async function fetchData() {
+        document.getElementById('loader').style.display = 'flex';
+        try {
+            const configDoc = await db.collection("pkm_config").doc("main").get();
+            const officersDoc = await db.collection("pkm_config").doc("officers").get();
+            
+            const year = state.currentDate.getFullYear();
+            const month = String(state.currentDate.getMonth() + 1).padStart(2, '0');
+            
+            const categories = ['UGD', 'KIA', 'KB'];
+            if (!state.data.schedule) state.data.schedule = {};
+
+            for (let cat of categories) {
+                const scheduleDocId = `${cat}_${year}-${month}`;
+                const scheduleDoc = await db.collection("pkm_schedules").doc(scheduleDocId).get();
+                state.data.schedule[cat] = scheduleDoc.exists ? scheduleDoc.data().data : {};
+            }
+
+            let loadedConfig = configDoc.exists ? configDoc.data() : { shifts: ["P", "S", "M"], holidays: [] };
+            if (!loadedConfig.shifts || loadedConfig.shifts.includes("POLI")) {
+                loadedConfig.shifts = ["P", "S", "M"];
+            }
+            state.data.config = loadedConfig;
+            
+            let loadedOfficers = officersDoc.exists ? officersDoc.data().list : [];
+            if (!loadedOfficers || loadedOfficers.length === 0) {
+                loadedOfficers = [
+                    "ARI KURNIA SARI", "SITI MAIMUNAH", "SUYANTI", "NURISNIYANTI",
+                    "BIDAN 5", "BIDAN 6", "BIDAN 7", "BIDAN 8",
+                    "BIDAN 9", "BIDAN 10", "BIDAN 11", "BIDAN 12"
+                ];
+            }
+            state.data.officers = loadedOfficers;
+
+            if (!state.data.config.holidays) state.data.config.holidays = [];
+            
+            fetchPublicHolidays();
+            setDirty(false);
+            renderTable();
+        } catch (e) {
+            console.error(e);
+            alert("Gagal sinkron data dari Firebase.");
+        } finally {
+            document.getElementById('loader').style.display = 'none';
+        }
+    }
+
+    async function fetchPublicHolidays() {
+        const year = state.currentDate.getFullYear();
+        try {
+            const resp = await fetch(`https://dayoffapi.vercel.app/api?year=${year}`);
+            const holidays = await resp.json();
+            holidays.forEach(h => {
+                if (!state.data.config.holidays.includes(h.tanggal)) {
+                    state.data.config.holidays.push(h.tanggal);
+                }
+            });
+            renderTable();
+        } catch (e) { console.log("Holiday API limit or error"); }
+    }
+
+    async function saveConfig() {
+        document.getElementById('loader').style.display = 'flex';
+        document.getElementById('loader-text').innerText = "Mengunggah ke Firebase...";
+        try {
+            const year = state.currentDate.getFullYear();
+            const month = String(state.currentDate.getMonth() + 1).padStart(2, '0');
+            const scheduleDocId = `${state.currentCategory}_${year}-${month}`;
+
+            const batch = db.batch();
+
+            const configRef = db.collection("pkm_config").doc("main");
+            batch.set(configRef, state.data.config);
+
+            const officersRef = db.collection("pkm_config").doc("officers");
+            batch.set(officersRef, { list: state.data.officers });
+
+            const scheduleRef = db.collection("pkm_schedules").doc(scheduleDocId);
+            batch.set(scheduleRef, { data: state.data.schedule[state.currentCategory] || {} });
+
+            await batch.commit();
+
+            setDirty(false);
+            openSuccessModal();
+            fetchData();
+            showToast("Berhasil Disimpan ke Firebase");
+        } catch (e) {
+            console.error(e);
+            alert("Gagal menyimpan ke Firebase.");
+        } finally {
+            document.getElementById('loader').style.display = 'none';
+            document.getElementById('loader-text').innerText = "Sinkronisasi Firebase...";
+        }
+    }
+
+    function setDirty(val) {
+        state.isDirty = val;
+        const btn = document.getElementById('btn-save-main');
+        if (val) btn.classList.add('btn-dirty');
+        else btn.classList.remove('btn-dirty');
+    }
+
+    function setViewState(mode) {
+        state.viewState = mode;
+        const btnWeek = document.getElementById('btn-view-week');
+        const btnMonth = document.getElementById('btn-view-month');
+        
+        if(mode === 'week') {
+            btnWeek.className = "flex-1 sm:flex-none px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all bg-white dark:bg-slate-700 text-slate-800 dark:text-white shadow-sm";
+            btnMonth.className = "flex-1 sm:flex-none px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all bg-transparent text-slate-500 dark:text-slate-400";
+        } else {
+            btnMonth.className = "flex-1 sm:flex-none px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all bg-white dark:bg-slate-700 text-slate-800 dark:text-white shadow-sm";
+            btnWeek.className = "flex-1 sm:flex-none px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all bg-transparent text-slate-500 dark:text-slate-400";
+        }
+        renderTable();
+    }
+
+    function changeCategory(category) {
+        state.currentCategory = category;
+        renderTable();
+    }
+
+    function getWeekDates(current) {
+        const dates = [];
+        const copy = new Date(current.getTime());
+        const day = copy.getDay();
+        const diff = copy.getDate() - day + (day === 0 ? -6 : 1); 
+        copy.setDate(diff);
+        
+        for (let i = 0; i < 7; i++) {
+            dates.push(new Date(copy.getTime()));
+            copy.setDate(copy.getDate() + 1);
+        }
+        return dates;
+    }
+
+    function isWeekendOrHoliday(dateObj, dayKey) {
+        const dayOfWeek = dateObj.getDay(); 
+        const isSundayOrSaturday = (dayOfWeek === 0 || dayOfWeek === 6);
+        const isHoliday = state.data.config.holidays.includes(dayKey);
+        return isSundayOrSaturday || isHoliday;
+    }
+
+    function getActiveDatesList() {
+        const activeDates = [];
+        if (state.viewState === 'month') {
+            const year = state.currentDate.getFullYear();
+            const month = state.currentDate.getMonth();
+            const daysInMonth = new Date(year, month + 1, 0).getDate();
+            for (let d = 1; d <= daysInMonth; d++) {
+                activeDates.push(new Date(year, month, d));
+            }
+        } else {
+            activeDates.push(...getWeekDates(state.currentDate));
+        }
+        return activeDates;
+    }
+
+    function renderTable() {
+        const head = document.getElementById('table-head');
+        const body = document.getElementById('table-body');
+        const foot = document.getElementById('table-foot');
+        const periodText = document.getElementById('current-period-text');
+        const periodTop = document.getElementById('calendar-period-top');
+        const exportTitle = document.getElementById('export-title-text');
+        const searchVal = document.getElementById('search-nurse').value.toUpperCase().trim();
+
+        exportTitle.innerText = `JADWAL BIDAN ${state.currentCategory}`;
+
+        let headHtml = `<tr><th class="sticky-name">NAMA BIDAN</th>`;
+        let activeDates = getActiveDatesList();
+
+        if (state.viewState === 'month') {
+            const year = state.currentDate.getFullYear();
+            const month = state.currentDate.getMonth();
+            const periodStr = `${MONTH_NAMES[month]} ${year}`;
+            periodText.innerText = periodStr;
+            periodTop.innerText = periodStr;
+        } else {
+            const startStr = `${activeDates[0].getDate()} ${MONTH_NAMES[activeDates[0].getMonth()]}`;
+            const endStr = `${activeDates[6].getDate()} ${MONTH_NAMES[activeDates[6].getMonth()]} ${activeDates[6].getFullYear()}`;
+            periodText.innerText = `${startStr} - ${endStr}`;
+            periodTop.innerText = `${startStr} - ${endStr}`;
+        }
+
+        activeDates.forEach(dateObj => {
+            const dayKey = formatDate(dateObj.getFullYear(), dateObj.getMonth(), dateObj.getDate());
+            const isSunday = dateObj.getDay() === 0;
+            const isHoliday = state.data.config.holidays.includes(dayKey);
+            const cellClass = isHoliday ? 'is-holiday' : (isSunday ? 'is-sunday' : '');
+            
+            headHtml += `<th class="date-header ${cellClass}" onclick="toggleHoliday('${dayKey}')">
+                <div class="text-[7px] opacity-60 mb-1">${DAYS_SHORT[dateObj.getDay()]}</div>
+                <div class="text-[12px] font-black">${dateObj.getDate()}</div>
+            </th>`;
+        });
+        headHtml += `</tr>`;
+        head.innerHTML = headHtml;
+
+        let bodyHtml = "";
+        const filteredOfficers = state.data.officers.filter(name => name.includes(searchVal));
+
+        let dailySummaryCounts = {};
+        activeDates.forEach(dateObj => {
+            const dayKey = formatDate(dateObj.getFullYear(), dateObj.getMonth(), dateObj.getDate());
+            dailySummaryCounts[dayKey] = { P: 0, S: 0, M: 0 };
+        });
+
+        filteredOfficers.forEach((name) => {
+            let rowHtml = `<tr><td class="sticky-name uppercase">${name}</td>`;
+            
+            activeDates.forEach(dateObj => {
+                const year = dateObj.getFullYear();
+                const month = dateObj.getMonth();
+                const d = dateObj.getDate();
+
+                const dayKey = formatDate(year, month, d);
+                const prevDateObj = new Date(year, month, d - 1);
+                const prevDayKey = formatDate(prevDateObj.getFullYear(), prevDateObj.getMonth(), prevDateObj.getDate());
+                
+                const isSunday = dateObj.getDay() === 0;
+                const isHoliday = state.data.config.holidays.includes(dayKey);
+                const isRestDay = (state.currentCategory === 'KIA' || state.currentCategory === 'KB') && isWeekendOrHoliday(dateObj, dayKey);
+
+                const categorySchedule = state.data.schedule[state.currentCategory] || {};
+                let val = (categorySchedule[name] && categorySchedule[name][dayKey]) ? categorySchedule[name][dayKey] : "";
+
+                if (val && ["P", "S", "M"].includes(val) && dailySummaryCounts[dayKey]) {
+                    dailySummaryCounts[dayKey][val]++;
+                }
+
+                let prevVal = (categorySchedule[name] && categorySchedule[name][prevDayKey]) ? categorySchedule[name][prevDayKey] : "";
+                
+                let clashClass = (prevVal === "M" && val === "P") ? "is-clash" : "";
+                let cellClass = isHoliday ? 'is-holiday' : (isSunday ? 'is-sunday' : '');
+                
+                if (isRestDay) {
+                    cellClass = 'is-off-day';
+                    val = '-';
+                } else if (val) {
+                    const shiftTypeClass = ["P", "S", "M"].includes(val) ? `cell-${val}` : 'cell-generic';
+                    cellClass += ' ' + shiftTypeClass;
+                }
+                
+                if (isRestDay) {
+                    rowHtml += `<td class="${cellClass}"><span class="text-[10px] font-bold text-slate-300">-</span></td>`;
+                } else {
+                    let options = `<option value=""></option>`;
+                    state.data.config.shifts.forEach(s => options += `<option value="${s}" ${val === s ? 'selected' : ''}>${s}</option>`);
+                    
+                    rowHtml += `<td class="${cellClass} ${clashClass}">
+                        <select 
+                            onchange="updateShiftLocal('${name}', '${dayKey}', this)" 
+                            oncontextmenu="showContextMenu(event, '${name}', '${dayKey}', this.value)"
+                            class="shift-select ${cellClass} ${clashClass}">
+                            ${options}
+                        </select>
+                    </td>`;
+                }
+            });
+            bodyHtml += rowHtml + `</tr>`;
+        });
+        body.innerHTML = bodyHtml;
+
+        let footHtml = `<tr class="bg-slate-50 dark:bg-slate-800 font-extrabold text-[10px]"><td class="sticky-name uppercase bg-slate-100 dark:bg-slate-800 text-teal-700 dark:text-teal-400">📊 TOTAL JAGA HARIAN</td>`;
+        activeDates.forEach(dateObj => {
+            const dayKey = formatDate(dateObj.getFullYear(), dateObj.getMonth(), dateObj.getDate());
+            const counts = dailySummaryCounts[dayKey] || { P: 0, S: 0, M: 0 };
+            const total = counts.P + counts.S + counts.M;
+            footHtml += `<td class="text-center font-bold text-[9px] text-slate-600 dark:text-slate-300">
+                ${total > 0 ? `P:${counts.P}<br>S:${counts.S}<br>M:${counts.M}` : '-'}
+            </td>`;
+        });
+        footHtml += `</tr>`;
+        foot.innerHTML = footHtml;
+
+        updateLegend();
+    }
+
+    function formatDate(y, m, d) {
+        return `${y}-${String(m+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+    }
+
+    function checkDuplicateOfficer(officerName, dayKey, currentCategory) {
+        const allCategories = ['UGD', 'KIA', 'KB'];
+        let assignedRooms = [];
+
+        allCategories.forEach(cat => {
+            if (cat === currentCategory) return;
+            const catSchedule = state.data.schedule[cat] || {};
+            const officerSchedule = catSchedule[officerName] || {};
+            
+            if (officerSchedule[dayKey] && officerSchedule[dayKey] !== "" && officerSchedule[dayKey] !== "-") {
+                assignedRooms.push(cat);
+            }
+        });
+
+        return assignedRooms;
+    }
+
+    function handleExcelUpload(event) {
+        const file = event.target.files[0];
+        if (!file) return;
+
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            try {
+                const data = new Uint8Array(e.target.result);
+                const workbook = XLSX.read(data, { type: 'array' });
+                const firstSheetName = workbook.SheetNames[0];
+                const worksheet = workbook.Sheets[firstSheetName];
+                const rows = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+                
+                if (rows.length === 0) {
+                    alert("File Excel kosong!");
+                    return;
+                }
+
+                const year = state.currentDate.getFullYear();
+                const month = String(state.currentDate.getMonth() + 1).padStart(2, '0');
+
+                if (!state.data.schedule[state.currentCategory]) {
+                    state.data.schedule[state.currentCategory] = {};
+                }
+
+                for (let i = 1; i < rows.length; i++) {
+                    const row = rows[i];
+                    if (!row || row.length === 0) continue;
+                    
+                    const officerName = String(row[0] || "").trim().toUpperCase();
+                    if (!officerName) continue;
+
+                    if (!state.data.officers.includes(officerName)) {
+                        state.data.officers.push(officerName);
+                    }
+
+                    if (!state.data.schedule[state.currentCategory][officerName]) {
+                        state.data.schedule[state.currentCategory][officerName] = {};
+                    }
+
+                    for (let j = 1; j < row.length; j++) {
+                        const shiftVal = String(row[j] || "").trim().toUpperCase();
+                        const dayNum = j; 
+                        
+                        if (dayNum >= 1 && dayNum <= 31) {
+                            const dayStr = String(dayNum).padStart(2, '0');
+                            const dayKey = `${year}-${month}-${dayStr}`;
+                            
+                            if (shiftVal && shiftVal !== "-") {
+                                state.data.schedule[state.currentCategory][officerName][dayKey] = shiftVal;
+                            }
+                        }
+                    }
+                }
+
+                setDirty(true);
+                renderTable();
+                showToast("Berhasil Mengimpor Excel");
+            } catch (error) {
+                console.error(error);
+                alert("Gagal membaca file Excel.");
+            } finally {
+                event.target.value = "";
+            }
+        };
+        reader.readAsArrayBuffer(file);
+    }
+
+    function updateShiftLocal(name, dayKey, select) {
+        const selectedShift = select.value;
+
+        if (selectedShift !== "") {
+            const conflicts = checkDuplicateOfficer(name, dayKey, state.currentCategory);
+            if (conflicts.length > 0) {
+                state.pendingClash = { name, dayKey, select, selectedShift, conflicts };
+                document.getElementById('clash-desc-text').innerText = `Bidan ${name} sudah memiliki jadwal di ruangan [ ${conflicts.join(', ')} ] pada tanggal ini. Tetap ingin memasukkan jadwal ganda?`;
+                document.getElementById('modal-clash').style.display = 'flex';
+                return;
+            }
+        }
+
+        applyShiftChange(name, dayKey, selectedShift);
+    }
+
+    function applyShiftChange(name, dayKey, selectedShift) {
+        if (!state.data.schedule[state.currentCategory]) state.data.schedule[state.currentCategory] = {};
+        if (!state.data.schedule[state.currentCategory][name]) state.data.schedule[state.currentCategory][name] = {};
+        
+        state.data.schedule[state.currentCategory][name][dayKey] = selectedShift;
+        setDirty(true);
+        renderTable();
+    }
+
+    function confirmForceClash() {
+        const { name, dayKey, select, selectedShift } = state.pendingClash;
+        applyShiftChange(name, dayKey, selectedShift);
+        closeClashModal();
+    }
+
+    function closeClashModal() {
+        if (state.pendingClash.select) {
+            let categorySchedule = state.data.schedule[state.currentCategory] || {};
+            let oldVal = (categorySchedule[state.pendingClash.name] && categorySchedule[state.pendingClash.name][state.pendingClash.dayKey]) ? categorySchedule[state.pendingClash.name][state.pendingClash.dayKey] : "";
+            state.pendingClash.select.value = oldVal;
+        }
+        document.getElementById('modal-clash').style.display = 'none';
+        state.pendingClash = { name: '', dayKey: '', select: null };
+    }
+
+    function showContextMenu(e, name, dayKey, value) {
+        e.preventDefault();
+        state.activeContext = { name, dayKey, value };
+        const menu = document.getElementById('context-menu');
+        menu.style.display = 'block';
+        menu.style.left = e.pageX + 'px';
+        menu.style.top = e.pageY + 'px';
+        
+        document.addEventListener('click', () => menu.style.display = 'none', { once: true });
+    }
+
+    function bulkFillDown() {
+        const { name, dayKey, value } = state.activeContext;
+        if (!value) return;
+        
+        let parts = dayKey.split('-');
+        let currentDate = new Date(parts[0], parts[1] - 1, parts[2]);
+        
+        if (!state.data.schedule[state.currentCategory]) state.data.schedule[state.currentCategory] = {};
+        if (!state.data.schedule[state.currentCategory][name]) state.data.schedule[state.currentCategory][name] = {};
+        
+        for(let i=0; i<7; i++) {
+            let targetDateObj = new Date(currentDate.getFullYear(), currentDate.getMonth(), currentDate.getDate() + i);
+            let targetKey = formatDate(targetDateObj.getFullYear(), targetDateObj.getMonth(), targetDateObj.getDate());
+            
+            let conflicts = checkDuplicateOfficer(name, targetKey, state.currentCategory);
+            if (conflicts.length > 0) continue; 
+
+            state.data.schedule[state.currentCategory][name][targetKey] = value;
+        }
+        setDirty(true);
+        renderTable();
+        showToast("Isi Kebawah Berhasil");
+    }
+
+    function clearRow() {
+        const { name } = state.activeContext;
+        if (confirm(`Hapus semua jadwal untuk bidan ${name} di kalender ${state.currentCategory}?`)) {
+            if (state.data.schedule[state.currentCategory]) {
+                state.data.schedule[state.currentCategory][name] = {};
+            }
+            setDirty(true);
+            renderTable();
+            showToast("Baris Dikosongkan");
+        }
+    }
+
+    document.getElementById('table-viewport').addEventListener('scroll', function() {
+        if (this.scrollLeft > 5) {
+            this.classList.add('scrolled-right');
+        } else {
+            this.classList.remove('scrolled-right');
+        }
+    });
+
+    function toggleHoliday(dayKey) {
+        const idx = state.data.config.holidays.indexOf(dayKey);
+        if (idx === -1) state.data.config.holidays.push(dayKey);
+        else state.data.config.holidays.splice(idx, 1);
+        setDirty(true);
+        renderTable();
+    }
+
+    function updateLegend() {
+        const container = document.getElementById('bottom-shift-legend');
+        container.innerHTML = state.data.config.shifts.map(sh => {
+            const cls = ["P", "S", "M"].includes(sh) ? `cell-${sh}` : 'cell-generic';
+            return `<div class="flex items-center gap-2"><div class="w-3 h-3 rounded-sm ${cls}"></div><span class="text-[9px] font-black uppercase text-slate-600 dark:text-slate-300">${sh}</span></div>`;
+        }).join('');
+    }
+
+    async function exportToImage() {
+        const area = document.getElementById('capture-area');
+        const viewport = document.getElementById('table-viewport');
+        const header = document.getElementById('export-header');
+        const footer = document.getElementById('capture-footer');
+        const loader = document.getElementById('loader');
+        
+        loader.style.display = 'flex';
+        document.getElementById('loader-text').innerText = "Memproses Gambar Full...";
+        
+        const originalViewportStyle = viewport.getAttribute('style') || '';
+        const stickyNames = document.querySelectorAll('.sticky-name');
+        
+        header.classList.remove('hidden');
+        footer.style.display = 'block';
+        
+        viewport.style.maxHeight = 'none';
+        viewport.style.overflow = 'visible';
+        viewport.style.width = '1200px'; 
+        
+        stickyNames.forEach(el => el.style.position = 'sticky');
+        document.getElementById('print-timestamp').innerText = new Date().toLocaleString('id-ID');
+
+        try {
+            const canvas = await html2canvas(area, {
+                scale: 2,
+                useCORS: true,
+                windowWidth: 1400,
+                backgroundColor: state.darkMode ? "#1e293b" : "#ffffff",
+                logging: false
+            });
+            const link = document.createElement('a');
+            const monthName = MONTH_NAMES[state.currentDate.getMonth()];
+            const yearName = state.currentDate.getFullYear();
+            link.download = `Jadwal_Bidan_${state.currentCategory}_Puskesmas_${monthName}_${yearName}.png`;
+            link.href = canvas.toDataURL('image/png');
+            link.click();
+            showToast("Gambar Berhasil Diunduh Utuh");
+        } catch (e) {
+            console.error(e);
+            alert("Gagal ekspor gambar.");
+        } finally {
+            header.classList.add('hidden');
+            footer.style.display = 'none';
+            viewport.setAttribute('style', originalViewportStyle);
+            viewport.style.width = '100%';
+            stickyNames.forEach(el => el.style.position = 'sticky');
+            loader.style.display = 'none';
+        }
+    }
+
+    function exportToExcel() {
+        const table = document.getElementById("rekap-table");
+        const clone = table.cloneNode(true);
+        clone.querySelectorAll('select').forEach(sel => {
+            const txt = document.createTextNode(sel.value);
+            sel.parentNode.replaceChild(txt, sel);
+        });
+        const wb = XLSX.utils.table_to_book(clone, { sheet: `Jadwal ${state.currentCategory}` });
+        XLSX.writeFile(wb, `Jadwal_${state.currentCategory}_Puskesmas_${MONTH_NAMES[state.currentDate.getMonth()]}.xlsx`);
+        showToast("Excel Berhasil Diunduh");
+    }
+
+    function openShiftModal() {
+        const container = document.getElementById('shift-list-container');
+        container.innerHTML = state.data.config.shifts.map((sh, i) => `
+            <div class="item-row">
+                <span class="text-xs font-black text-slate-700 dark:text-white uppercase">${sh}</span>
+                <button onclick="deleteShift(${i})" class="w-8 h-8 flex items-center justify-center bg-rose-50 text-rose-500 rounded-lg">🗑️</button>
+            </div>
+        `).join('');
+        document.getElementById('modal-shift').style.display = 'flex';
+    }
+    function closeShiftModal() { document.getElementById('modal-shift').style.display = 'none'; }
+    function addNewShift() {
+        const val = document.getElementById('input-new-shift').value.trim().toUpperCase();
+        if (!val || state.data.config.shifts.includes(val)) return;
+        state.data.config.shifts.push(val);
+        document.getElementById('input-new-shift').value = "";
+        setDirty(true); renderTable(); openShiftModal();
+    }
+    function deleteShift(i) {
+        if (confirm("Hapus shift ini?")) {
+            state.data.config.shifts.splice(i, 1);
+            setDirty(true); renderTable(); openShiftModal();
+        }
+    }
+
+    function openOfficerModal() {
+        const container = document.getElementById('officer-list-container');
+        container.innerHTML = state.data.officers.map((name, i) => `
+            <div class="item-row">
+                <span class="text-xs font-black text-slate-700 dark:text-white uppercase">${name}</span>
+                <div class="flex gap-2">
+                    <button onclick="deleteOfficer(${i})" class="w-8 h-8 flex items-center justify-center bg-rose-50 text-rose-500 rounded-lg">🗑️</button>
+                </div>
+            </div>
+        `).join('');
+        document.getElementById('modal-officer').style.display = 'flex';
+    }
+    function closeOfficerModal() { document.getElementById('modal-officer').style.display = 'none'; }
+    function addNewOfficer() {
+        const val = document.getElementById('input-new-officer').value.trim().toUpperCase();
+        if (!val || state.data.officers.includes(val)) return;
+        state.data.officers.push(val);
+        document.getElementById('input-new-officer').value = "";
+        setDirty(true); renderTable(); openOfficerModal();
+    }
+    function deleteOfficer(i) {
+        const n = state.data.officers[i];
+        if (confirm(`Hapus ${n}?`)) {
+            state.data.officers.splice(i, 1);
+            setDirty(true); renderTable(); openOfficerModal();
+        }
+    }
+
+    function changePeriod(offset) {
+        if (state.isDirty && !confirm("Ada perubahan belum disimpan. Lanjut?")) return;
+        if(state.viewState === 'month') {
+            state.currentDate.setMonth(state.currentDate.getMonth() + offset);
+        } else {
+            state.currentDate.setDate(state.currentDate.getDate() + (offset * 7));
+        }
+        fetchData();
+    }
+
+    function openSuccessModal() { document.getElementById('modal-success').style.display = 'flex'; }
+    function closeSuccessModal() { document.getElementById('modal-success').style.display = 'none'; }
+    function openHelpModal() { document.getElementById('modal-help').style.display = 'flex'; }
+    function closeHelpModal() { document.getElementById('modal-help').style.display = 'none'; }
+
+</script>
+</body>
+</html>
